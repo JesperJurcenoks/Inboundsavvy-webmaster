@@ -3,7 +3,18 @@ set -e
 
 MCP_ENDPOINT="https://beta.inboundsavvy.com/mcp"
 SKILL_DIR="$HOME/.claude/skills/inboundsavvy-webmaster"
+REPO_RAW="https://raw.githubusercontent.com/JesperJurcenoks/Inboundsavvy-webmaster/main"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Resolve SKILL.md source: use local copy when run from a clone, otherwise fetch from GitHub
+install_skill() {
+  mkdir -p "$SKILL_DIR"
+  if [ -f "$SCRIPT_DIR/SKILL.md" ]; then
+    cp "$SCRIPT_DIR/SKILL.md" "$SKILL_DIR/SKILL.md"
+  else
+    curl -fsSL "$REPO_RAW/SKILL.md" -o "$SKILL_DIR/SKILL.md"
+  fi
+}
 
 echo "InboundSavvy Webmaster — installer"
 echo ""
@@ -12,8 +23,7 @@ echo ""
 if [ -f .mcp.json ]; then
   echo "Detected existing .mcp.json — updating skill only."
   echo ""
-  mkdir -p "$SKILL_DIR"
-  cp "$SCRIPT_DIR/SKILL.md" "$SKILL_DIR/SKILL.md"
+  install_skill
   echo "✓ Skill updated at $SKILL_DIR/SKILL.md"
   echo ""
   echo "MCP config unchanged. To use a new token, delete .mcp.json and run install.sh again."
@@ -74,12 +84,11 @@ else
 fi
 
 # Install/update skill globally
-mkdir -p "$SKILL_DIR"
 if [ -f "$SKILL_DIR/SKILL.md" ]; then
-  cp "$SCRIPT_DIR/SKILL.md" "$SKILL_DIR/SKILL.md"
+  install_skill
   echo "✓ Skill updated at $SKILL_DIR/SKILL.md"
 else
-  cp "$SCRIPT_DIR/SKILL.md" "$SKILL_DIR/SKILL.md"
+  install_skill
   echo "✓ Skill installed at $SKILL_DIR/SKILL.md"
 fi
 
