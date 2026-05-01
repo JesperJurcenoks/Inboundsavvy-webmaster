@@ -16,32 +16,58 @@ The skill connects to your InboundSavvy website via MCP, loads your current desi
 
 ---
 
+## How it works
+
+The skill talks to your live InboundSavvy website over the network — it does **not** need any downloaded website files. The local directory you create below is just a workspace that holds your API token (`.mcp.json`). Your actual website content stays on the InboundSavvy servers; the skill reads and writes it directly via the MCP API.
+
+---
+
 ## Install
 
-**Step 1 — Get an MCP token**
+**Step 1 — Create a local workspace folder for your website**
+
+Create an empty directory anywhere on your machine and open a terminal there. One folder per website — if you manage multiple sites, give each its own folder.
+
+```bash
+mkdir my-website && cd my-website
+```
+
+**Step 2 — Get an MCP token**
 
 Log in to your InboundSavvy CMS → **Settings → API Tokens** → create a new token. Copy the value (it starts with `is_mcp_`).
 
-**Step 2 — Run the installer in your project directory**
+**Step 3 — Run the installer inside that folder**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JesperJurcenoks/Inboundsavvy-webmaster/main/install.sh | bash
 ```
 
-Or clone and run locally:
+The installer prompts for your token (hidden input), writes `.mcp.json` in the current directory, adds it to `.gitignore`, and installs the skill at `~/.claude/skills/inboundsavvy-webmaster/`.
+
+Or run from a local clone instead:
 ```bash
 git clone https://github.com/JesperJurcenoks/Inboundsavvy-webmaster
-cd /your/project/directory
+cd my-website
 bash /path/to/Inboundsavvy-webmaster/install.sh
 ```
 
-The installer prompts for your token (hidden input), writes `.mcp.json` in the current directory, adds it to `.gitignore`, and places the skill in `~/.claude/skills/inboundsavvy-webmaster/`.
+**Step 4 — Open Claude Code in that folder and type `/inboundsavvy-webmaster`**
 
-**Already installed?** Running `install.sh` again from the same directory detects the existing `.mcp.json` and updates only the skill file — no token prompt. To change your token, delete `.mcp.json` first and re-run.
+```bash
+claude .
+```
 
-**Step 3 — Open Claude Code and type `/inboundsavvy-webmaster`**
+Then in Claude Code:
 
-That's it. The skill connects automatically and announces what it found.
+```
+/inboundsavvy-webmaster
+```
+
+The skill connects to your live site, loads your design system and page list, and tells you what it found. You never need to download or copy any website files.
+
+---
+
+**Already installed?** Running `install.sh` again from the same folder detects the existing `.mcp.json` and updates only the skill — no token prompt. To switch to a different token, delete `.mcp.json` first and re-run.
 
 ---
 
