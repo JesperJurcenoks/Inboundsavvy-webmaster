@@ -35,7 +35,7 @@ If a change can't survive a 375px-wide viewport, it doesn't ship.
 
 ## 1. Setup
 
-1. **Get an MCP token** — CMS → **Settings → API Tokens** → create token (starts with `is_mcp_`).
+1. **Get an MCP token** — CMS → **... More → MCP Tokens** → create token (starts with `is_mcp_`).
 2. **Configure MCP server** — run `./install.sh` (writes `.mcp.json` + adds to `.gitignore`), or add manually:
    ```json
    {
@@ -309,7 +309,7 @@ get_content_file("blog", "{slug}")    ← read a single entry
 | Error | Cause | Fix |
 |---|---|---|
 | MCP tools not available / no `inboundsavvy` server | `.mcp.json` missing or misconfigured, or session started before config was added | Confirm `.mcp.json` exists in the project directory (see README for format); restart Claude Code to reload MCP config |
-| `Token invalid or revoked` | MCP token expired or deleted | Go to CMS → Settings → API Tokens → create a new token; re-run `install.sh` |
+| `Token invalid or revoked` | MCP token expired or deleted | Go to CMS → ... More → MCP Tokens → create a new token; re-run `install.sh` |
 | `Website not found` | Token scoped to a different website | Confirm you're in the correct project directory with the right `.mcp.json` |
 | Schema validation failure | Invalid `type`/`tag` or missing required field | Run the pre-write checklist (Section 5); check the Component Selection Guide in the loaded schema instructions |
 | Build failed | Code or content error in the generated JSON | Call `get_build_logs(build_id)` → read the error; common causes: invalid JSON, missing required field, asset filename not found |

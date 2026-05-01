@@ -34,7 +34,7 @@ mkdir my-website && cd my-website
 
 **Step 2 — Get an MCP token for this website**
 
-Log in to your InboundSavvy CMS → **select the website you want to work on** → **Settings → API Tokens** → create a new token. Copy the value (it starts with `is_mcp_`).
+Log in to your InboundSavvy CMS → **select the website you want to work on** → **... More → MCP Tokens** → create a new token. Copy the value (it starts with `is_mcp_`).
 
 > Each token is scoped to one website. If you manage multiple sites, make sure you're inside the right website before creating the token.
 
@@ -106,7 +106,7 @@ with new-hero.jpg and change the h1 to "Work in progress"
 
 - **Never commit `.mcp.json`** — the installer adds it to `.gitignore` automatically
 - **One token per site** — each token is scoped to one website; create a new one for each project directory
-- **Rotate tokens** any time in CMS → select the website → Settings → API Tokens
+- **Rotate tokens** any time in CMS → select the website → ... More → MCP Tokens
 
 ---
 
