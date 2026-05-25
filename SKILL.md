@@ -259,8 +259,12 @@ Steps:
 1. Get the file path (or ask for it if not provided)
 2. Validate: file size ≤ 3MB (`stat -c%s <path>`); filename matches `^[a-z0-9._-]+$` (rename to kebab-case if not)
 3. Encode: `base64 -w0 <path>` → `content_base64`
-4. Call `upload_asset(filename, content_base64, content_type)` → returns the asset URL
-5. Reference the filename only (no paths, no leading slashes) in whichever form fits the context:
+4. Determine the correct folder:
+   - Default: `"images"` (for page/global assets)
+   - Multi-entry collections: use the collection name as the folder — `"blog"`, `"articles"`, `"events"`, `"products"`, `"collaborators"`, `"layouts"`, etc.
+   - If the upload is for a specific collection entry (e.g. the cover image of a blog post), always pass `folder="{collection}"` so the asset lands in `assets/{collection}/` rather than `assets/images/`
+5. Call `upload_asset(filename, content_base64, content_type, folder="{folder}")` → returns the asset URL
+6. Reference the filename only (no paths, no leading slashes) in whichever form fits the context:
    - **Image element** (`"tag": "image"`): `"src": "filename.jpg"` in the element's content
    - **Background image**: `"options": { "background": "url('filename.jpg')", "background-size": "cover", "background-position": "center center" }` — prefer `options.background` over writing raw CSS in `options.css`. Use the filename only — no leading slash (the schema reference examples may show `url('/hero.png')` but the slash is incorrect)
 
