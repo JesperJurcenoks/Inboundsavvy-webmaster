@@ -91,8 +91,7 @@ with new-hero.jpg and change the h1 to "Work in progress"
 >
 > Shall I proceed? [yes/no]
 >
-> ✓ File updated. Preview your changes now at:
-> https://beta.inboundsavvy.com/console/website/acmestudio.com/preview
+> ✓ File updated. Log into your console at https://inboundsavvy.com to view your changes.
 >
 > Would you also like me to trigger a beta build?
 >

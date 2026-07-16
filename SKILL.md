@@ -42,7 +42,7 @@ If a change can't survive a 375px-wide viewport, it doesn't ship.
      "mcpServers": {
        "inboundsavvy": {
          "type": "http",
-         "url": "https://beta.inboundsavvy.com/mcp",
+         "url": "https://inboundsavvy.com/mcp",
          "headers": { "Authorization": "Bearer is_mcp_your_token_here" }
        }
      }
@@ -191,9 +191,8 @@ If creating a new page that should appear in navigation:
 ### Preview (preferred — free, instant)
 
 After a successful write, always offer the live preview first:
-> "File saved. You can preview your changes immediately at:
-> `https://beta.inboundsavvy.com/console/website/{domain}/preview`
-> From there you can navigate to any page. Would you also like me to trigger a beta build?"
+> "File saved. Log into your console at https://inboundsavvy.com to view your changes.
+> Would you also like me to trigger a build?"
 
 ### Building (optional — costs money, needed for full fidelity)
 

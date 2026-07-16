@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-MCP_ENDPOINT="https://beta.inboundsavvy.com/mcp"
+MCP_ENDPOINT="https://inboundsavvy.com/mcp"
 SKILL_DIR="$HOME/.claude/skills/inboundsavvy-webmaster"
 REPO_RAW="https://raw.githubusercontent.com/JesperJurcenoks/Inboundsavvy-webmaster/main"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
