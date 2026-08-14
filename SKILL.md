@@ -70,7 +70,9 @@ Execute in this order:
    b. If cache exists: run `grep -m1 "schema-version" ~/.claude/skills/inboundsavvy-webmaster/schema-cache.md` → extract `cached_version`
    c. If no cache **or** `cached_version ≠ current_version`: call `get_content_schema_reference()` → write full response to cache path
    d. Find Section 7 start line: `grep -n "^## 7\." ~/.claude/skills/inboundsavvy-webmaster/schema-cache.md` → `line_N`
-   e. `Read(cache_path, offset=line_N, limit=250)` → hold Section 7 rules in active context. Do **not** load the full document.
+   e. `Read(cache_path, offset=line_N, limit=380)` → hold Section 7 rules in active context. Do **not** load the full document.
+
+   **On-demand component/collection reads:** For any component or collection you are about to create or edit, grep the cached schema file (`~/.claude/skills/inboundsavvy-webmaster/schema-cache.md`) for its EXACT heading (per the §7 Reference map — e.g. `### 5D.` for a component, `### 4.5` for events) and Read only that section before writing. Do not reload the whole document.
 
 2. **Load site identity** — call `get_content_file("globalsitesettings", "globalsitesettings")`. Extract:
    - `siteName` — the site's display name
@@ -85,6 +87,8 @@ Execute in this order:
 
 5. **Announce** — output a brief connection summary:
    > "Connected to **{siteName}** ({domain}). I can see {N} pages: {slug-list}. Design system: {headingFont}/{bodyFont}, primary color {hex value of --primaryColor from colorDesign}. What would you like to work on?"
+
+   If the page-slug list contains no slug resembling a blog, articles, or events index (e.g. `blog`, `articles`, `events`, `news`), you MAY append a heuristic note that those collection types may be unreachable. This is cheaply inferable from the already-loaded slug list only — do **not** read every page file to verify.
 
 ---
 
@@ -103,6 +107,8 @@ Always enforce these.
 - **ALWAYS** show the approval gate diff before writing
 - **ALWAYS** update the pagemap when creating a new navigable page
 - **ALWAYS** auto-detect and use an installed design skill for creative work (see Section 4) — never ask the user whether one is installed
+- **ALWAYS** after creating or editing collection entries (articles/blog/events/products/collaborators), ensure a page carries the collection's listing component (`entries-list` with the right `entryType` / `events-list` / `collaborators-list`) AND a pagemap entry, or the content is not reachable on the site.
+- **ALWAYS** when you CREATE or EDIT a collection entry, confirm a listing page already exists AND appears in the pagemap: for any page slug that looks like an index (e.g. blog, articles, events, products, news), call `get_content_file` on it and check for the listing tag/entryType before concluding none exists; if truly none, tell the user the content will be unreachable and offer to create the listing page.
 
 ---
 
