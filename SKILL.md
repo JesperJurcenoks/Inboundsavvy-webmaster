@@ -96,6 +96,7 @@ Always enforce these.
 - **NEVER** invent a `type` or `tag` value — only use the ones defined in the loaded schema instructions
 - **NEVER** hardcode a design system color in page/content JSON — use `var(--primaryColor)` etc. (Hex values belong in `globaldesignsettings` only.)
 - **NEVER** use custom CSS keyframe animations in `options.css`
+- **NEVER** put a `backgroundColor` key inside an element's `options` — Set a section or element background with the `background` key in `options` (e.g. `"background": "var(--backgroundColor)"`); a `backgroundColor` key inside `options` is not rendered on the live site. The hex `backgroundColor` belongs only in `globaldesignsettings.colorDesign`, and the CSS variable `var(--backgroundColor)` is always valid as a *value* inside `background`. (This forbids only the JSON key; using `var(--backgroundColor)` as a value inside `background` is always correct.)
 - **NEVER** remove `meta.title` or `meta.status.published`
 - **NEVER** ship a change that breaks mobile — base `options` is the desktop default and cascades to every viewport; whenever any declarative property at the base (`size`, `flex.flexDirection`, `grid.columns`, `gridColumns`, `imagesPerRow`, `maxColumns`, `padding`, etc.) would not survive a narrow viewport, add a `phone` (and if needed `tablet`) override block that redeclares only the fields that change. No horizontal overflow at 375px
 - **ALWAYS** run the pre-write validation checklist before any MCP write call
@@ -263,9 +264,9 @@ Steps:
    - Multi-entry collections: use the collection name as the folder — `"blog"`, `"articles"`, `"events"`, `"products"`, `"collaborators"`, `"layouts"`, etc.
    - If the upload is for a specific collection entry (e.g. the cover image of a blog post), always pass `folder="{collection}"` so the asset lands in `assets/{collection}/` rather than `assets/images/`
 5. Call `upload_asset(filename, content_base64, content_type, folder="{folder}")` → returns the asset URL
-6. Reference the filename only (no paths, no leading slashes) in whichever form fits the context:
+6. Reference the filename only (no paths) in whichever form fits the context:
    - **Image element** (`"tag": "image"`): `"src": "filename.jpg"` in the element's content
-   - **Background image**: `"options": { "background": "url('filename.jpg')", "background-size": "cover", "background-position": "center center" }` — prefer `options.background` over writing raw CSS in `options.css`. Use the filename only — no leading slash (the schema reference examples may show `url('/hero.png')` but the slash is incorrect)
+   - **Background image**: `"options": { "background": "url('/filename.jpg')", "background-size": "cover", "background-position": "center center" }` — prefer `options.background` over writing raw CSS in `options.css`. Use `url('/filename.jpg')` with a leading slash — this is the canonical stored form (matches the editor export; the live build strips and resolves it via the asset gallery). Filename only — no directory path.
 
 ### 8e. Manage Collection Entries
 
