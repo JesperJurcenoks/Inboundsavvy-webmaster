@@ -103,6 +103,7 @@ Always enforce these.
 - **NEVER** put a `backgroundColor` key inside an element's `options` — Set a section or element background with the `background` key in `options` (e.g. `"background": "var(--backgroundColor)"`); a `backgroundColor` key inside `options` is not rendered on the live site. The hex `backgroundColor` belongs only in `globaldesignsettings.colorDesign`, and the CSS variable `var(--backgroundColor)` is always valid as a *value* inside `background`. (This forbids only the JSON key; using `var(--backgroundColor)` as a value inside `background` is always correct.)
 - **NEVER** remove `meta.title` or `meta.status.published`
 - **NEVER** ship a change that breaks mobile — base `options` is the desktop default and cascades to every viewport; whenever any declarative property at the base (`size`, `flex.flexDirection`, `grid.columns`, `gridColumns`, `imagesPerRow`, `maxColumns`, `padding`, etc.) would not survive a narrow viewport, add a `phone` (and if needed `tablet`) override block that redeclares only the fields that change. No horizontal overflow at 375px
+- **NEVER** write a redirect whose `to` lacks a trailing slash. Sites are served from an S3 static website endpoint, which answers a directory-style URL without a trailing slash with its own `302` to add one, so `"to": "/about"` costs every redirected visitor a second round trip while `"to": "/about/"` resolves in one. Do not point `to` at `index.html` either: it works, but it puts `index.html` in the visitor's address bar and creates a second crawlable URL serving identical content. See Section 8f.
 - **ALWAYS** run the pre-write validation checklist before any MCP write call
 - **ALWAYS** show the approval gate diff before writing
 - **ALWAYS** update the pagemap when creating a new navigable page
@@ -312,6 +313,51 @@ get_content_file("blog", "{slug}")    ← read a single entry
 4. Validation checklist → approval gate
 5. Call `update_content_file("{collection}", "{slug}", {...})`
 
+### 8f. Redirect a URL
+
+Redirects live in the singleton collection `redirection` (singular), slug
+`redirection`. Writing to `redirections/redirections` silently does nothing.
+
+```json
+{
+  "redirects": [
+    { "from": "/old-about", "to": "/about/" },
+    { "from": "/blog/2023-welcome", "to": "/blog/welcome/" }
+  ]
+}
+```
+
+Both `from` and `to` start with `/`. **`to` must also end with `/`.** The site is
+served from an S3 static website endpoint, which replies to a directory-style URL
+lacking a trailing slash with its own `302` to add one. A destination written
+`/about` therefore turns one hop into two for every redirected visitor.
+
+#### These redirects are client-side, not `301`s
+
+The build emits each redirect as a small HTML file carrying
+`<meta http-equiv="refresh" content="0;url=...">`, `<meta name="robots"
+content="noindex">` and a canonical link, served with HTTP `200`.
+
+That is adequate for tidying up a stale internal link. It is **not** adequate for
+moving a URL that has accumulated search impressions: a `200` plus meta refresh
+does not transfer ranking signal the way a `301` does, and the `noindex`
+instructs Google to drop the old URL rather than credit the new one, which
+conflicts with the canonical instead of reinforcing it.
+
+**Before moving a URL that has traffic, tell the user this.** Ask whether the old
+URL has search impressions worth preserving. If it does, the redirect also needs
+a real `301` set on the S3 object as `x-amz-website-redirect-location`, which is
+outside this skill's reach and belongs to whoever owns the deploy pipeline.
+
+Two things to pass on when raising it:
+
+- The value follows the same trailing-slash rule, and should not end in
+  `index.html`.
+- It does not survive a rebuild on its own. The deploy runs
+  `aws s3 sync --delete`, which re-uploads the object with no metadata, so the
+  redirect has to be reapplied by the pipeline after every sync. Setting it by
+  hand proves the mechanism; it does not fix the site.
+
 ---
 
 ## 9. Common Errors + How to Fix
@@ -325,4 +371,7 @@ get_content_file("blog", "{slug}")    ← read a single entry
 | Build failed | Code or content error in the generated JSON | Call `get_build_logs(build_id)` → read the error; common causes: invalid JSON, missing required field, asset filename not found |
 | Asset too large | File exceeds 3MB limit | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
 | Asset filename rejected | Filename contains spaces or special characters | Rename to `kebab-case.jpg` before uploading |
+| Redirect takes two hops | `to` has no trailing slash, so S3 issues its own `302` to add one | Rewrite `to` ending in `/` (Section 8f) |
+| Redirect written but nothing happens | Written to `redirections/redirections` instead of collection `redirection`, slug `redirection` | Rewrite to the singular collection and slug |
+| Moved URL lost its Google ranking | The redirect is a `200` plus meta refresh, which does not transfer ranking signal | Ask the pipeline owner to set `x-amz-website-redirect-location` on the S3 object for a real `301` (Section 8f) |
 
