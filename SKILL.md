@@ -263,7 +263,7 @@ Accept the file in whichever way the user provides it:
 
 Steps:
 1. Get the file path (or ask for it if not provided)
-2. Validate: file size ≤ 3MB (`stat -c%s <path>`); filename matches `^[a-z0-9._-]+$` (rename to kebab-case if not)
+2. Validate: file size against the maximum stated in the `upload_asset` tool description (`stat -c%s <path>`); filename matches `^[a-z0-9._-]+$` (rename to kebab-case if not)
 3. Encode: `base64 -w0 <path>` → `content_base64`
 4. Determine the correct folder:
    - Default: `"images"` (for page/global assets)
@@ -323,6 +323,6 @@ get_content_file("blog", "{slug}")    ← read a single entry
 | `Website not found` | Token scoped to a different website | Confirm you're in the correct project directory with the right `.mcp.json` |
 | Schema validation failure | Invalid `type`/`tag` or missing required field | Run the pre-write checklist (Section 5); check the Component Selection Guide in the loaded schema instructions |
 | Build failed | Code or content error in the generated JSON | Call `get_build_logs(build_id)` → read the error; common causes: invalid JSON, missing required field, asset filename not found |
-| Asset too large | File exceeds 3MB limit | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
+| Asset too large | File exceeds the upload size limit; the error message names the limit and the file's actual size | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
 | Asset filename rejected | Filename contains spaces or special characters | Rename to `kebab-case.jpg` before uploading |
 
