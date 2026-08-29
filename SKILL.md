@@ -161,7 +161,10 @@ Before calling `create_content_file` or `update_content_file`, run this checklis
 ▢ 10. Required entry fields — see collection-specific list in the loaded schema instructions
 ▢ 11. pagemap write ready — second MCP call prepared if creating a new navigable page
 ▢ 12. Mobile-safe — wherever a base `options` declaration would break a narrow viewport (multi-column flex/grid, fixed `size.width`, `gridColumns`/`imagesPerRow`/`maxColumns` > 2, large `padding`), a `phone` override block redeclares only the fields that need to change. No horizontal overflow at 375px
-▢ 13. A11y beyond alt text — heading hierarchy is sequential (one h1 per page; h2 before h3, etc.); link text is descriptive (no "click here" / "read more" without context); any new color pairing maintains readable contrast against the design system background
+▢ 13. Unrecognized keys - every key you wrote exists in the loaded schema; an invented key is dropped silently, not rejected (e.g. `options.grid` takes only `columns` / `rows` / `gap`)
+▢ 14. Filter keys - `entries-list` filters (`category`, `collaborator`, `filterOutSeries`) are omitted when unused, never passed as ""
+▢ 15. Cover crop - a full-bleed cover is cut to the hero aspect ratio at the asset level, not left to `object-fit`, which can only center-crop
+▢ 16. A11y beyond alt text — heading hierarchy is sequential (one h1 per page; h2 before h3, etc.); link text is descriptive (no "click here" / "read more" without context); any new color pairing maintains readable contrast against the design system background
 ```
 
 ---
@@ -357,6 +360,14 @@ applied to every section of every entry body and is what centers the text.
 in every entry; per-element `options` still win, so keep these minimal or they
 fight the content.
 
+**Match the measure to the main pages, and to the generator.** If the prose
+containers on `pages/*` are 860px, the article body is 860px too. An article at
+42rem next to a page at 860px reads as a different site, and nobody looking at
+the article alone can see why it feels wrong. If entries are produced by a
+generator script, the width lives in two places - the generator and this design
+file - and they must agree, because the narrower of the two silently wins and
+gives no clue which one it was.
+
 **2. `collectionHeader` - the hero.** The cover photograph is the dominant thing
 on an article. To take it wall to wall out of a constrained parent:
 
@@ -374,6 +385,10 @@ is what makes it dominant rather than a strip: **a hero is defined by height, no
 by width.** A full-width image 200px tall is a band, and a band is the one thing
 it must not be.
 
+The `object-fit:cover` in that rule is a safety net for an asset that is already
+the right shape, not the thing that shapes it. See the next subsection: it
+center-crops and cannot be told otherwise, so the cover has to arrive already cut.
+
 Put the breadcrumb, title and description in a `div` **below** the image, inside
 the same measure as the body, so the text column is continuous from the title to
 the end of the article.
@@ -390,7 +405,44 @@ get_content_file("designs", "articles-design")
 ```
 
 That is faster and safer than deriving it, and it shows which keys the renderer
-actually honors.
+actually honors. This generalizes past collections; see 8h.
+
+#### Cover images: `object-fit` can only ever center-crop
+
+`object-fit: cover` has exactly one behavior. It fills the box and throws away
+what does not fit, **from the middle outward, on both edges equally.** There is
+no way to tell it to keep the top. So a hero whose subject is not in the vertical
+middle of the frame loses that subject: a bird high in the picture loses its
+head, a deer standing on the ground loses its feet, and the crop is worst on the
+photographs that are best.
+
+`object-position` can bias it, but it is one value for one image, and a
+collection design file styles every entry with the same rule. On one site,
+thirteen of twenty-eight covers were portrait, and every one of them was wrong in
+a full-bleed hero.
+
+**Fix it at the asset level, not in CSS.** Cut each cover to the hero's aspect
+ratio before upload, with a crop gravity chosen for that one photograph:
+
+```
+# subject high in the frame - keep the top
+magick bird-on-branch.jpg -resize 2000x -gravity north  -crop 2000x1125+0+0 +repage bird-on-branch-cover.jpg
+# subject standing on the ground - keep the bottom
+magick deer-at-dusk.jpg    -resize 2000x -gravity south  -crop 2000x1125+0+0 +repage deer-at-dusk-cover.jpg
+```
+
+Keep the original under its own name and upload the crop as a separate asset
+(`-cover.jpg`), because the crop is specific to one target ratio and the original
+is still what a side-by-side block or a lightbox should use.
+
+Two consequences worth stating:
+
+- The per-image decision is **which edge carries the evidence**, and that is a
+  judgment about the photograph, not a setting. Write it down next to the
+  filename so the next person cropping it does not have to re-derive it.
+- If a photograph has no horizontal reading at all - a tall tree, a standing
+  animal filling the frame - the answer is not a better gravity. It does not go
+  in the hero. Give it the golden-section block below.
 
 #### Images inside an entry body
 
@@ -449,6 +501,181 @@ Related: **a page that is not in `pagemap` is not rendered at all.** Its route
 404s even after a green build. When bisecting a build failure, a page under test
 that is absent from the pagemap will produce a false green.
 
+### 8g. Type over a photograph, without dimming the photograph
+
+The reflex fix for white text on a busy hero is a dark scrim. It works, and it
+costs the photograph. On one site the first pass ran scrims of 0.34 to 0.50 at
+the top and 0.48 to 0.62 at the bottom across six photo sections, and the client's
+verdict was that the site "comes off as EMO" with the images hard to distinguish
+behind the text. Dialing the scrim down to 0.17-0.25 made the photographs
+readable again and the type marginal. There is no setting that is right for both,
+because the scrim solves the wrong problem: it changes the picture in order to
+fix the letters.
+
+**Put the contrast in the type instead.** A dark stroke painted underneath a
+solid white fill gives every letter its own local contrast, over any background,
+with the photograph untouched:
+
+```json
+"options": {
+  "color": "var(--white)",
+  "textShadow": "0 2px 18px rgba(0,0,0,0.55)",
+  "css": "-webkit-text-stroke: 3px rgba(0,0,0,0.5); paint-order: stroke fill;"
+}
+```
+
+- **`paint-order: stroke fill` is the whole trick.** By default the stroke is
+  painted over the fill and eats the letterform from the inside, which thickens
+  and muddies the type. Reversing the order puts the stroke behind the glyph, so
+  it reads as a halo rather than an outline.
+- **3px on headings, 2px on body text.** A 3px stroke on 16px type closes the
+  counters and the word turns into a blob.
+- **The fill must be solid `#ffffff`.** A semi-transparent white fill lets the
+  black stroke show through the middle of the stroke, and the result reads as
+  dirty grey rather than white. This is the failure that looks like "the stroke
+  is too strong" and is actually the fill.
+- Keep the `textShadow` soft and wide. It carries the large areas where the
+  stroke alone is not enough; the stroke carries the edges.
+
+Note that `-webkit-text-stroke` and `paint-order` have to go in `options.css`
+because they are not exposed as declarative keys, and per the Philosophy section
+**anything in `options.css` cannot be overridden at a `phone` or `tablet`
+breakpoint.** That is acceptable here only because the stroke width does not need
+to change with the viewport. If you find yourself wanting a different stroke on
+phone, you want a different element, not a breakpoint.
+
+---
+
+### 8h. Silent failures, and how to find them
+
+The schema rejects what it knows is wrong. What it does **not** do is tell you
+about a key it has never heard of: an unrecognized key is dropped, the write
+succeeds, the build goes green, and the page renders as though you never made the
+change. Every entry below is a case of that.
+
+#### Read a working example from a sibling site before authoring anything non-trivial
+
+Every InboundSavvy site exposes its own MCP server, and a design or page file
+that already renders correctly is the only documentation that is guaranteed to
+match the renderer. Pull one:
+
+```
+get_content_file("designs", "articles-design")   # through the sibling site's MCP server
+get_content_file("pages",   "articles")
+```
+
+This is faster than deriving a file from the schema reference, and it is the only
+way to see which keys the renderer actually **honors** as against which ones the
+documentation merely lists. Do this first for collection design files,
+`entries-list` configuration, and any component you have not shipped before.
+
+#### `options.grid` takes `columns`, `rows` and `gap`. Nothing else.
+
+`gridTemplateColumns` is not a key. It is silently dropped, which leaves
+`display: grid` with no template at all, and a grid with no template renders as a
+single column.
+
+```json
+"options": {
+  "display": "grid",
+  "grid": { "gridTemplateColumns": "repeat(3, 1fr)", "gap": "1.5rem" }   // WRONG
+}
+```
+
+```json
+"options": {
+  "display": "grid",
+  "grid": { "columns": 3, "gap": "1.5rem" },
+  "tablet": { "grid": { "columns": 2 } },
+  "phone":  { "grid": { "columns": 1 } }
+}
+```
+
+This one is worth calling out loudly because a wrong key produces **no error at
+all**, and the sibling `gap` on the same object is a valid key and survives. So
+the block comes back with its gutters applied and its columns missing, which
+looks like a renderer bug rather than a typo. It is a typo.
+
+**Diagnose it by reading the built stylesheet.** The build emits per-page CSS at
+`/segments/<page>-<hash>.css`; fetch it and grep for the property you expected:
+
+```
+curl -s https://{domain}/segments/articles-<hash>.css | grep -o 'grid-template-columns[^;]*'
+```
+
+Nothing back means the key never reached the renderer. This works for any
+declarative key you suspect of being dropped, not just grid.
+
+#### `entries-list` filter keys must be omitted, not blanked
+
+Passing a filter with an empty string - `"category": ""`,
+`"filterOutSeries": ""`, `"collaborator": ""` - appears to break the component.
+Omit the key entirely when you do not want to filter on it.
+
+Stated as suspected rather than proven: the failure was observed with blank
+filters present and went away when the keys were removed, and it has not been
+isolated to a single key. What makes it worth writing down anyway is that **the
+schema reference's own example shows blank values**, so copying the documented
+example is how you get there. Copy a working `entries-list` from a sibling site
+instead.
+
+See also the reachability rule in 8f: on at least one site `entries-list` failed
+the build outright, so add it, build, and confirm the site is up before adding
+anything else.
+
+#### A failed build deploys nothing, so the whole site 404s
+
+Not the page you changed - the site. Verify the site is **up** after every build,
+not merely that the build reported green:
+
+```
+curl -s -o /dev/null -w '%{http_code}\n' https://{domain}/
+```
+
+And **publish one change at a time when something is failing.** `get_build_logs`
+returns the head of the log and cannot reach the tail, which is where the error
+is, so the log will not tell you which of five changes broke it. Bisecting by
+publishing singly is slower per step and much faster overall. Remember from 8f
+that a page absent from the pagemap is not rendered at all, so a page under test
+that is missing from the pagemap produces a false green.
+
+---
+
+### 8i. Check the copy with code, not with a re-read
+
+Spelling, punctuation and house style are **rules**, so they belong in a script
+rather than in another read-through. A re-read finds a different subset of the
+same problems every time and gets worse as the site grows; a checker finds all of
+them, every time, in under a second, and can gate the build.
+
+There is a working example at `voice-check.py` in the yggdrasilsprings.church
+repo. The approach, which is what transfers:
+
+- **Extract prose before matching on it.** Content JSON is mostly layout. The
+  scanner pulls only the keys that carry words a visitor reads - `text`, `title`,
+  `description`, `alt`, `caption` - so that `"fontStyle": "normal"` is not
+  reported as a style violation and `options.css` is not scanned at all. Without
+  this step the signal-to-noise is bad enough that the tool gets ignored.
+- **Separate defects from judgment calls, and exit accordingly.** British
+  spellings, ambiguous all-numeric dates (`08/09/2026` is August 9th to an
+  American and the 8th of September to everyone else), emdashes and en dashes,
+  and the stock AI vocabulary are defects: they fail the run. Register and voice
+  notes - softening qualifiers, a house preference for one connective over
+  another - are printed for a human to weigh and do not fail it. A checker that
+  fails on judgment calls gets switched off.
+- **Detect meta-commentary by its grammatical subject.** "The site never talks
+  about itself" sounds like it needs a human, and does not: the giveaway is the
+  subject of the sentence being the page, the article, the list, or the reader's
+  act of reading. `\b(this|each|every) (article|page|section|entry|post)\b`,
+  `\byou will find\b`, `\bthe following (article|section|list)\b`. Apply this
+  rule only to published content files, not to the brief or the generators, which
+  describe the site by design and would otherwise light up entirely.
+- **Keep the word lists in the client's repo, not in this skill.** They are house
+  style, and they differ per client. What generalizes is the three-bucket
+  structure and the prose extraction, not the vocabulary.
+
+Run it before the approval gate, not after the build.
+
 ---
 
 ## 9. Common Errors + How to Fix
@@ -460,6 +687,11 @@ that is absent from the pagemap will produce a false green.
 | `Website not found` | Token scoped to a different website | Confirm you're in the correct project directory with the right `.mcp.json` |
 | Schema validation failure | Invalid `type`/`tag` or missing required field | Run the pre-write checklist (Section 5); check the Component Selection Guide in the loaded schema instructions |
 | Build failed | Code or content error in the generated JSON | Call `get_build_logs(build_id)` → read the error; common causes: invalid JSON, missing required field, asset filename not found |
+| Whole site returns 404 after a build | The build failed, and a failed build deploys nothing - the previous site is gone, not just the changed page | Check `curl -o /dev/null -w '%{http_code}' https://{domain}/` after every build; publish one change at a time to bisect, since `get_build_logs` cannot reach the tail of the log where the error is (see 8h) |
+| Block renders as a single column despite `display: grid` | An invented key inside `options.grid` - most often `gridTemplateColumns` - was silently dropped, leaving grid with no template | Use `grid: { "columns": N, "gap": "..." }`; confirm by fetching `/segments/<page>-<hash>.css` and grepping for `grid-template-columns` (see 8h) |
+| `entries-list` renders nothing or breaks the build | Filter keys passed as empty strings, as the schema reference's own example shows | Omit unused filter keys entirely; copy a working `entries-list` from a sibling site's MCP server (see 8h) |
+| Collection entries render hard-left with no margin | `designs/{collection}-design.json` still has the template's empty `options` blocks | Set `collectionMain.options.sectionOptions` and the header/footer measures (see 8f) |
+| Hero crops the subject out of the photograph | `object-fit: cover` center-crops on both edges and cannot be told to keep the top | Cut the cover to the hero aspect ratio at the asset level with a per-image crop gravity (see 8f) |
 | Asset too large | File exceeds 3MB limit | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
 | Asset filename rejected | Filename contains spaces or special characters | Rename to `kebab-case.jpg` before uploading |
 
