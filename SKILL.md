@@ -105,7 +105,8 @@ Always enforce these.
 - **NEVER** ship a change that breaks mobile — base `options` is the desktop default and cascades to every viewport; whenever any declarative property at the base (`size`, `flex.flexDirection`, `grid.columns`, `gridColumns`, `imagesPerRow`, `maxColumns`, `padding`, etc.) would not survive a narrow viewport, add a `phone` (and if needed `tablet`) override block that redeclares only the fields that change. No horizontal overflow at 375px
 - **ALWAYS** run the pre-write validation checklist before any MCP write call
 - **ALWAYS** show the approval gate diff before writing
-- **ALWAYS** update the pagemap when creating a new navigable page
+- **ALWAYS** update the pagemap when creating a new navigable page - a page absent from the pagemap is not rendered at all, and its route 404s after a green build
+- **ALWAYS** set the collection's `designs/{collection}-design.json` before judging how a collection looks: the template ships it with every `options` block empty, which renders entries hard-left with no reading measure (see 8f)
 - **ALWAYS** auto-detect and use an installed design skill for creative work (see Section 4) — never ask the user whether one is installed
 - **ALWAYS** after creating or editing collection entries (articles/blog/events/products/collaborators), ensure a page carries the collection's listing component (`entries-list` with the right `entryType` / `events-list` / `collaborators-list`) AND a pagemap entry, or the content is not reachable on the site.
 - **ALWAYS** when you CREATE or EDIT a collection entry, confirm a listing page already exists AND appears in the pagemap: for any page slug that looks like an index (e.g. blog, articles, events, products, news), call `get_content_file` on it and check for the listing tag/entryType before concluding none exists; if truly none, tell the user the content will be unreachable and offer to create the listing page.
@@ -311,6 +312,142 @@ get_content_file("blog", "{slug}")    ← read a single entry
 3. Apply requested changes — preserve all existing fields not explicitly changed
 4. Validation checklist → approval gate
 5. Call `update_content_file("{collection}", "{slug}", {...})`
+
+### 8f. Lay out a collection: articles, blog, products
+
+**The layout of every entry in a collection lives in one file:
+`content/designs/{collection}-design.json`. Not in the entries.** Style an entry
+and you have styled one page; style the design and you have styled all of them.
+
+**The trap.** The greenfield template ships this file with every `options` block
+empty:
+
+```json
+"collectionHeader": { ... "options": {} },
+"collectionMain":   { "options": {} },
+"collectionFooter": { ... "options": {} }
+```
+
+Empty options are not defaults. They are nothing. An article rendered against
+that file comes out hard against the left edge with no margin, no reading
+measure, and a cover image at whatever intrinsic size it happens to be. If a
+collection looks unstyled, this file is the reason, and no amount of per-entry
+`options` will fix it properly.
+
+#### The four things to set
+
+**1. `collectionMain.options.sectionOptions` - the reading measure.** This is
+applied to every section of every entry body and is what centers the text.
+
+```json
+"collectionMain": { "options": {
+  "sectionOptions": {
+    "size": { "width": "100%", "maxWidth": "42rem" },
+    "margin": [0, "auto"],
+    "padding": [0, 24],
+    "phone":  { "padding": [0, 20] }
+  },
+  "titlesOptions": { "textAlign": "left" },
+  "textsOptions":  { "textAlign": "left" }
+}}
+```
+
+`42rem` is roughly 70 characters, which is the usual target for body text.
+`titlesOptions` and `textsOptions` set defaults for every heading and paragraph
+in every entry; per-element `options` still win, so keep these minimal or they
+fight the content.
+
+**2. `collectionHeader` - the hero.** The cover photograph is the dominant thing
+on an article. To take it wall to wall out of a constrained parent:
+
+```json
+"options": {
+  "size": { "width": "100%" },
+  "css": "display:block; width:100vw; margin-left:calc(50% - 50vw); height:72vh; object-fit:cover;",
+  "tablet": { "css": "... height:60vh; ..." },
+  "phone":  { "css": "... height:52vh; ..." }
+}
+```
+
+`width:100vw` with `margin-left:calc(50% - 50vw)` escapes the container. `72vh`
+is what makes it dominant rather than a strip: **a hero is defined by height, not
+by width.** A full-width image 200px tall is a band, and a band is the one thing
+it must not be.
+
+Put the breadcrumb, title and description in a `div` **below** the image, inside
+the same measure as the body, so the text column is continuous from the title to
+the end of the article.
+
+**3. `collectionFooter`.** Byline, then related entries. Give it the same
+`maxWidth` and `margin: [0, "auto"]` as the body or it will not line up with the
+column above it.
+
+**4. Read a working example before writing one.** If another site in the estate
+has a collection that looks right, pull its design file and copy the structure:
+
+```
+get_content_file("designs", "articles-design")
+```
+
+That is faster and safer than deriving it, and it shows which keys the renderer
+actually honors.
+
+#### Images inside an entry body
+
+**A photograph beside its text, not stacked above it.** Two children in a flex
+row: the figure at 38.2% and the words at 61.8%, both dropping to 100% on phone
+and tablet. Alternate the side down the article so it does not read as a
+template.
+
+```json
+{"type": "semanticTag", "tag": "section", "options": {},
+ "content": [{"type": "blockLevelElement", "tag": "div",
+   "options": {"size": {"width": "100%", "maxWidth": "58rem"},
+               "margin": [0, "auto"], "padding": [28, 24],
+               "display": "flex",
+               "flex": {"flexDirection": "row", "alignItems": "center", "gap": "2.5rem"},
+               "phone":  {"flex": {"flexDirection": "column", "alignItems": "stretch"}},
+               "tablet": {"flex": {"flexDirection": "column", "alignItems": "stretch"}}},
+   "content": [ FIGURE_38_PERCENT, WORDS_62_PERCENT ]}]}
+```
+
+Note the container is **wider than the reading measure** - 58rem against 42rem.
+A figure block is not a paragraph and should breathe past the text column.
+
+Use `figure` + `figcaption` rather than a bare `image` whenever the photograph
+has something to say: a date, a place, what it is evidence of.
+
+#### Rules that keep being relearned
+
+**One full-bleed band per page, and it is the hero at the top.** A second band
+flattens the page into a stack of identical letterboxes. The band is not the
+default treatment for a photograph; it is the exception, spent once.
+
+**Never crop a portrait photograph into a band.** Ask what the photograph needs
+in order to work. A tall tree needs height. A wide ridgeline needs width. A
+detail needs to be large enough to read. If the answer is not "a short horizontal
+strip", it does not go in a band. Portraits get a side-by-side block instead.
+
+**A band must never crop out the evidence.** If a photograph contains the one
+thing that makes it work - a person for scale, a bird in the corner - check that
+the crop keeps it.
+
+**Vertical rhythm comes from one container, not from stacked sections.** A
+section per heading, each with 80px of padding top and bottom, renders as 160px
+of empty page between a heading and the paragraph before it. Put consecutive
+prose in a single container with a gap and a margin above each heading.
+
+#### Do not surface a collection with `entries-list` without testing a build
+
+`entries-list` is documented as the way to make a collection reachable, and on at
+least one site it fails the build outright - and a failed build deploys nothing,
+so the whole site 404s. Add it, build, and check the site is still up before
+adding anything else. If it fails, build the grid by hand from
+`link-container` + `image` + `subtitle` + `text` in a wrapping flex row.
+
+Related: **a page that is not in `pagemap` is not rendered at all.** Its route
+404s even after a green build. When bisecting a build failure, a page under test
+that is absent from the pagemap will produce a false green.
 
 ---
 
