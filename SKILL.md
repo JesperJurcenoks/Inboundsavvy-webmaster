@@ -50,6 +50,26 @@ If a change can't survive a 375px-wide viewport, it doesn't ship.
    ```
 3. **Install this skill** — `./install.sh` places it at `~/.claude/skills/inboundsavvy-webmaster/SKILL.md`.
 
+**Multiple websites:** each InboundSavvy MCP token is scoped to one website, so install each site as its own MCP server. Use the primary domain in the server name, for example `inboundsavvy_acmestudio.com`, even though every server uses the same endpoint (`https://inboundsavvy.com/mcp`). This makes the tool namespace tell you which site you are about to edit.
+
+Example `.mcp.json` for two sites:
+```json
+{
+  "mcpServers": {
+    "inboundsavvy_northwindcafe.com": {
+      "type": "http",
+      "url": "https://inboundsavvy.com/mcp",
+      "headers": { "Authorization": "Bearer is_mcp_YOUR_TOKEN_HERE" }
+    },
+    "inboundsavvy_acmestudio.com": {
+      "type": "http",
+      "url": "https://inboundsavvy.com/mcp",
+      "headers": { "Authorization": "Bearer is_mcp_YOUR_TOKEN_HERE" }
+    }
+  }
+}
+```
+
 **Never commit `.mcp.json`** — it contains your token. Add `is_mcp_*` to `.gitignore`.
 
 ---
@@ -78,6 +98,7 @@ Execute in this order:
    - `siteName` — the site's display name
    - `seo.url` — the canonical domain (e.g. `https://acmestudio.com`)
    - Derive beta preview base URL: `https://beta.{domain}/` (strip `https://` from `seo.url`)
+   - If multiple InboundSavvy MCP servers are installed, verify the active server namespace matches the primary domain (`inboundsavvy_{domain}`) before writing. If the namespace/domain do not match the intended site, stop and ask the user to switch to the correct MCP server/token.
 
 3. **Load design system** — call `get_content_file("globaldesignsettings", "globaldesignsettings")`. Extract:
    - `colorDesign` — the hex values the user has set for each CSS variable in their design system; use these when updating `globaldesignsettings`. In page/content JSON always reference them as `var(--...)` instead.
@@ -104,6 +125,7 @@ Always enforce these.
 - **NEVER** remove `meta.title` or `meta.status.published`
 - **NEVER** ship a change that breaks mobile — base `options` is the desktop default and cascades to every viewport; whenever any declarative property at the base (`size`, `flex.flexDirection`, `grid.columns`, `gridColumns`, `imagesPerRow`, `maxColumns`, `padding`, etc.) would not survive a narrow viewport, add a `phone` (and if needed `tablet`) override block that redeclares only the fields that change. No horizontal overflow at 375px
 - **ALWAYS** run the pre-write validation checklist before any MCP write call
+- **ALWAYS** verify the target site identity before a write: the MCP server name should be based on the primary domain (for example `inboundsavvy_acmestudio.com`) and `globalsitesettings.seo.url` must match the site the user asked to edit. If it points at a sandbox or another domain, stop.
 - **ALWAYS** show the approval gate diff before writing
 - **ALWAYS** update the pagemap when creating a new navigable page - a page absent from the pagemap is not rendered at all, and its route 404s after a green build
 - **ALWAYS** set the collection's `designs/{collection}-design.json` before judging how a collection looks: the template ships it with every `options` block empty, which renders entries hard-left with no reading measure (see 8f)

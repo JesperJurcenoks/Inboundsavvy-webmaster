@@ -5,6 +5,71 @@ MCP_ENDPOINT="https://inboundsavvy.com/mcp"
 SKILL_DIR="$HOME/.claude/skills/inboundsavvy-webmaster"
 REPO_RAW="https://raw.githubusercontent.com/JesperJurcenoks/Inboundsavvy-webmaster/main"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVER_NAME=""
+PRIMARY_DOMAIN=""
+
+usage() {
+  cat <<'USAGE'
+InboundSavvy Webmaster installer
+
+Usage:
+  install.sh [--name MCP_SERVER_NAME] [--domain PRIMARY_DOMAIN]
+
+Options:
+  --name      MCP server name to write in .mcp.json.
+              Recommended: inboundsavvy_<primary-domain>
+              Example: inboundsavvy_acmestudio.com
+  --domain    Primary website domain. Used to suggest the server name.
+              Example: acmestudio.com
+  -h, --help  Show this help.
+USAGE
+}
+
+sanitize_domain_name() {
+  local domain="$1"
+  domain="${domain#https://}"
+  domain="${domain#http://}"
+  domain="${domain%%/*}"
+  # Lowercase via tr, not ${domain,,}: the latter needs bash 4, and macOS
+  # still ships bash 3.2 as /bin/bash, where the curl-pipe install would die
+  # on a syntax error before printing anything.
+  domain="$(printf '%s' "$domain" | tr '[:upper:]' '[:lower:]')"
+  printf 'inboundsavvy_%s' "$domain"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --name)
+      if [ -z "${2:-}" ]; then
+        echo "Error: --name requires a value." >&2
+        exit 1
+      fi
+      SERVER_NAME="$2"
+      shift 2
+      ;;
+    --domain)
+      if [ -z "${2:-}" ]; then
+        echo "Error: --domain requires a value." >&2
+        exit 1
+      fi
+      PRIMARY_DOMAIN="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Error: unknown argument '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ -n "$PRIMARY_DOMAIN" ] && [ -z "$SERVER_NAME" ]; then
+  SERVER_NAME="$(sanitize_domain_name "$PRIMARY_DOMAIN")"
+fi
 
 # Resolve SKILL.md source: use local copy when run from a clone, otherwise fetch from GitHub
 install_skill() {
@@ -31,10 +96,26 @@ if [ -f .mcp.json ]; then
 fi
 
 # Full install path
+if [ -z "$SERVER_NAME" ]; then
+  printf "Primary website domain (for MCP server name, e.g. acmestudio.com): "
+  read -r PRIMARY_DOMAIN
+  if [ -n "$PRIMARY_DOMAIN" ]; then
+    SERVER_NAME="$(sanitize_domain_name "$PRIMARY_DOMAIN")"
+  else
+    SERVER_NAME="inboundsavvy"
+  fi
+fi
+
+if [[ ! "$SERVER_NAME" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+  echo "Error: MCP server name may only contain letters, numbers, underscores, dots, and hyphens." >&2
+  exit 1
+fi
+
 echo "This will:"
 echo "  1. Write .mcp.json in the current directory (per-project MCP config)"
-echo "  2. Install the skill at $SKILL_DIR/SKILL.md"
-echo "  3. Add .mcp.json and is_mcp_* to .gitignore"
+echo "  2. Use MCP server name: $SERVER_NAME"
+echo "  3. Install the skill at $SKILL_DIR/SKILL.md"
+echo "  4. Add .mcp.json and is_mcp_* to .gitignore"
 echo ""
 
 # Prompt for token without echoing it
@@ -55,7 +136,7 @@ fi
 cat > .mcp.json <<EOF
 {
   "mcpServers": {
-    "inboundsavvy": {
+    "$SERVER_NAME": {
       "type": "http",
       "url": "$MCP_ENDPOINT",
       "headers": {
