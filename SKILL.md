@@ -164,6 +164,8 @@ Before calling `create_content_file` or `update_content_file`, run this checklis
 ▢ 13. Unrecognized keys - every key you wrote exists in the loaded schema; an invented key is dropped silently, not rejected (e.g. `options.grid` takes only `columns` / `rows` / `gap`)
 ▢ 14. Filter keys - `entries-list` filters (`category`, `collaborator`, `filterOutSeries`) are omitted when unused, never passed as ""
 ▢ 15. Cover crop - a full-bleed cover is cut to the hero aspect ratio at the asset level, not left to `object-fit`, which can only center-crop
+▢ 15a. Component layout - no `options.display: "grid"` or `options.grid` on a component that lays itself out (`entries-list`, `events-list`); its own `gridColumns` is the knob (see 8h)
+▢ 15b. Layout claims - a layout fix is verified on a screenshot of the built page, never on the built stylesheet alone; an emitted property can be sitting on the wrong element (see 8h)
 ▢ 16. A11y beyond alt text — heading hierarchy is sequential (one h1 per page; h2 before h3, etc.); link text is descriptive (no "click here" / "read more" without context); any new color pairing maintains readable contrast against the design system background
 ```
 
@@ -633,12 +635,66 @@ curl -s https://{domain}/segments/articles-<hash>.css | grep -o 'grid-template-c
 Nothing back means the key never reached the renderer. This works for any
 declarative key you suspect of being dropped, not just grid.
 
+**But emitted is not applied, and the stylesheet cannot tell you the difference.**
+That grep answers one question only: *was the key accepted?* It cannot answer
+*is the layout right?*, because a valid key on the wrong element is emitted just
+as happily as a valid key on the right one.
 
-**Confirmed on a build.** After switching `gridTemplateColumns` to `columns`, the
-generated stylesheet emits `grid-template-columns:repeat(2, minmax(0, 1fr))` where
-before it emitted nothing. The wrong key produced no error and no CSS; the
-documented sibling `gap` on the same object survived both times, which is what
-makes the block look half-applied rather than broken.
+This is not hypothetical. An earlier version of this section reported the fix as
+confirmed on the evidence that `grid-template-columns:repeat(2, minmax(0, 1fr))`
+now appeared in the built CSS where nothing had appeared before. That was true,
+and the page was still one column, because the property had landed on the wrapper
+around the list rather than on the list. The report cost a day.
+
+So the grep is step one of two. **Step two is to look at the page:**
+
+```
+google-chrome --headless=new --disable-gpu --window-size=1440,5200 \
+  --screenshot=/tmp/check.png --virtual-time-budget=8000 "https://{domain}/<path>"
+```
+
+Then open the image and compare what you see against what you asked for. Never
+report a layout fix on stylesheet evidence alone.
+
+#### An `entries-list` lays out its own cards. Do not put a grid around it.
+
+This is how the property above landed on the wrong element, and it is the single
+most likely way to get a one-column list out of a component you configured for
+two.
+
+An `entries-list` renders three children in order: a filter bar, the card list,
+and a pagination nav. Its own `content.gridColumns` is what lays the *cards* out
+- it emits `--grid-columns` on the inner `.items-grid`. Setting `options.display:
+"grid"` and `options.grid` on the component instead applies a grid to that outer
+wrapper, which dutifully puts the card list in column one and the pagination nav
+in column two. The cards then stack single file in half the available width, and
+the pager floats beside them.
+
+```json
+"content": { "entryType": "articles", "displayMode": "grid", "gridColumns": 2 },
+"options": { "display": "grid", "grid": { "columns": 2 } }   // WRONG, fights itself
+```
+
+```json
+"content": { "entryType": "articles", "displayMode": "grid", "gridColumns": 2 },
+"options": { "size": { "width": "100%" } }
+```
+
+The rule generalizes: before styling a **component**, check whether it already
+owns the thing you are about to set. Components carry their own internal layout;
+block-level elements do not.
+
+#### `entries-list` cannot exclude the entry it is sitting on
+
+There is no exclude-by-slug option, and no `{{article-slug}}` among the
+collection variables to build one from - the set is title, description,
+collaborator, publicationDate, series, order, coverImage, status and tags. A
+`series`-filtered list in a collection footer therefore lists the article the
+reader is currently reading, under a heading that says "next".
+
+Until the component grows the option, generate that footer list yourself from
+primitives, in whatever script writes the entries. That is the only place the
+current slug is known.
 
 #### `entries-list` filter keys must be omitted, not blanked
 
@@ -722,7 +778,10 @@ Run it before the approval gate, not after the build.
 | Schema validation failure | Invalid `type`/`tag` or missing required field | Run the pre-write checklist (Section 5); check the Component Selection Guide in the loaded schema instructions |
 | Build failed | Code or content error in the generated JSON | Call `get_build_logs(build_id)` → read the error; common causes: invalid JSON, missing required field, asset filename not found |
 | Whole site returns 404 after a build | The build failed, and a failed build deploys nothing - the previous site is gone, not just the changed page | Check `curl -o /dev/null -w '%{http_code}' https://{domain}/` after every build; publish one change at a time to bisect, since `get_build_logs` cannot reach the tail of the log where the error is (see 8h) |
-| Block renders as a single column despite `display: grid` | An invented key inside `options.grid` - most often `gridTemplateColumns` - was silently dropped, leaving grid with no template | Use `grid: { "columns": N, "gap": "..." }`; confirm by fetching `/segments/<page>-<hash>.css` and grepping for `grid-template-columns` (see 8h) |
+| Block renders as a single column despite `display: grid` | An invented key inside `options.grid` - most often `gridTemplateColumns` - was silently dropped, leaving grid with no template | Use `grid: { "columns": N, "gap": "..." }`; grep `/segments/<page>-<hash>.css` to confirm the key was accepted, then screenshot the page to confirm it did anything (see 8h) |
+| `entries-list` still one column, and `grid-template-columns` IS in the built CSS | The grid is on the component's wrapper, so it laid out the card list and the pagination nav as the two columns, not the cards | Remove `options.display` and `options.grid` from the component; set `content.gridColumns` instead (see 8h) |
+| An article lists itself under "Next in the series" | `entries-list` has no exclude-by-slug option and no `{{article-slug}}` to build one from; it cannot know which entry it is on | Generate the footer list from primitives in the script that writes the entries (see 8h) |
+| Three cards to a row render as two, with an empty third of the page | Percentage card widths that ignore the gaps: `31.5% x 3` plus two `2rem` gaps exceeds the container, so the third wraps | Compute the width from the gaps: `calc((100% - 4rem) / 3)` |
 | `entries-list` renders nothing or breaks the build | Filter keys passed as empty strings, as the schema reference's own example shows | Omit unused filter keys entirely; copy a working `entries-list` from a sibling site's MCP server (see 8h) |
 | Collection entries render hard-left with no margin | `designs/{collection}-design.json` still has the template's empty `options` blocks | Set `collectionMain.options.sectionOptions` and the header/footer measures (see 8f) |
 | Hero crops the subject out of the photograph | `object-fit: cover` center-crops on both edges and cannot be told to keep the top | Cut the cover to the hero aspect ratio at the asset level with a per-image crop gravity (see 8f) |
