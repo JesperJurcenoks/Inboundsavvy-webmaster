@@ -267,7 +267,7 @@ Accept the file in whichever way the user provides it:
 
 Steps:
 1. Get the file path (or ask for it if not provided)
-2. Validate: file size ≤ 3MB (`stat -c%s <path>`); filename matches `^[a-z0-9._-]+$` (rename to kebab-case if not)
+2. Validate: file size ≤ 4MB (`stat -c%s <path>`); filename matches `^[a-z0-9._-]+$` (rename to kebab-case if not)
 3. Encode: `base64 -w0 <path>` → `content_base64`
 4. Determine the correct folder:
    - Default: `"images"` (for page/global assets)
@@ -444,6 +444,33 @@ Two consequences worth stating:
   animal filling the frame - the answer is not a better gravity. It does not go
   in the hero. Give it the golden-section block below.
 
+#### Do not let the browser crop what you already cropped
+
+Cutting the cover to the right aspect with a chosen gravity is only half the job.
+If the hero box is a different shape from the asset, `object-fit: cover` crops it
+a **second** time, center-only, and throws away the gravity you just chose.
+
+A worked example. Covers cut to 3:2, hero box `width:100vw; height:72vh`. On a
+1920x1080 screen that box is roughly 2.5:1, so the browser took another slice off
+the top and bottom of an already correct file. The symptom was a deer that looked
+as though its feet had been cut off, while the file on disk showed the whole
+animal standing on a hilltop.
+
+Stop the two disagreeing: give the box the asset's own aspect ratio rather than a
+fixed height.
+
+```
+display:block; width:100vw; margin-left:calc(50% - 50vw);
+aspect-ratio:3/2; max-height:88vh; object-fit:cover;
+```
+
+Box and image are now the same shape, `cover` has nothing left to trim, and the
+gravity chosen at cut time is what the reader sees.
+
+**How to tell which crop is the culprit:** if the asset on disk is right and the
+rendered hero is wrong, CSS is doing it, and no amount of re-cutting the asset
+will help.
+
 #### Images inside an entry body
 
 **A photograph beside its text, not stacked above it.** Two children in a flex
@@ -606,6 +633,13 @@ curl -s https://{domain}/segments/articles-<hash>.css | grep -o 'grid-template-c
 Nothing back means the key never reached the renderer. This works for any
 declarative key you suspect of being dropped, not just grid.
 
+
+**Confirmed on a build.** After switching `gridTemplateColumns` to `columns`, the
+generated stylesheet emits `grid-template-columns:repeat(2, minmax(0, 1fr))` where
+before it emitted nothing. The wrong key produced no error and no CSS; the
+documented sibling `gap` on the same object survived both times, which is what
+makes the block look half-applied rather than broken.
+
 #### `entries-list` filter keys must be omitted, not blanked
 
 Passing a filter with an empty string - `"category": ""`,
@@ -692,6 +726,6 @@ Run it before the approval gate, not after the build.
 | `entries-list` renders nothing or breaks the build | Filter keys passed as empty strings, as the schema reference's own example shows | Omit unused filter keys entirely; copy a working `entries-list` from a sibling site's MCP server (see 8h) |
 | Collection entries render hard-left with no margin | `designs/{collection}-design.json` still has the template's empty `options` blocks | Set `collectionMain.options.sectionOptions` and the header/footer measures (see 8f) |
 | Hero crops the subject out of the photograph | `object-fit: cover` center-crops on both edges and cannot be told to keep the top | Cut the cover to the hero aspect ratio at the asset level with a per-image crop gravity (see 8f) |
-| Asset too large | File exceeds 3MB limit | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
+| Asset too large | File exceeds 4MB limit | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
 | Asset filename rejected | Filename contains spaces or special characters | Rename to `kebab-case.jpg` before uploading |
 
