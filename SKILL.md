@@ -103,6 +103,7 @@ Always enforce these.
 - **NEVER** put a `backgroundColor` key inside an element's `options` — Set a section or element background with the `background` key in `options` (e.g. `"background": "var(--backgroundColor)"`); a `backgroundColor` key inside `options` is not rendered on the live site. The hex `backgroundColor` belongs only in `globaldesignsettings.colorDesign`, and the CSS variable `var(--backgroundColor)` is always valid as a *value* inside `background`. (This forbids only the JSON key; using `var(--backgroundColor)` as a value inside `background` is always correct.)
 - **NEVER** remove `meta.title` or `meta.status.published`
 - **NEVER** ship a change that breaks mobile — base `options` is the desktop default and cascades to every viewport; whenever any declarative property at the base (`size`, `flex.flexDirection`, `grid.columns`, `gridColumns`, `imagesPerRow`, `maxColumns`, `padding`, etc.) would not survive a narrow viewport, add a `phone` (and if needed `tablet`) override block that redeclares only the fields that change. No horizontal overflow at 375px
+- **NEVER** call `trigger_build` unless the user asked for a build. Builds are capped at 30 per environment per 24 hours and the cap is shared across everything done that day. Write, then ask. Batch changes into one build (see 7)
 - **ALWAYS** run the pre-write validation checklist before any MCP write call
 - **ALWAYS** show the approval gate diff before writing
 - **ALWAYS** update the pagemap when creating a new navigable page - a page absent from the pagemap is not rendered at all, and its route 404s after a green build
@@ -207,12 +208,32 @@ After a successful write, always offer the live preview first:
 > "File saved. Log into your console at https://inboundsavvy.com to view your changes.
 > Would you also like me to trigger a build?"
 
-### Building (optional — costs money, needed for full fidelity)
+### Building (on the user's direction ONLY — costs money, and the quota is finite)
 
-If the user wants a full build:
+**Builds are rationed: 30 per environment per 24 hours.** Past that the trigger
+is refused until a stated reset time, and there is no way to buy more. The quota
+is a shared resource for the whole day's work, not a per-task allowance.
+
+So **never build on your own initiative.** Write, then stop and ask. One build at
+the end of a batch of changes beats one build per change, and a batch of ten
+edits published together costs a thirtieth of the day instead of a third of it.
+
+If the user asks for a build:
 ```
 trigger_build(environment="beta") → build_id
 ```
+
+**A refused trigger does not look like an error at a glance.** When the quota is
+gone the call comes back saying so, and any wrapper that only checks for a
+`build_id` will read the absence of one as "nothing to poll" rather than as
+failure. Treat **no `build_id` as a failed build** and surface the message.
+Otherwise content sits published-but-not-live while the run reports success -
+which is exactly how a replaced photograph stayed invisible for an afternoon on
+yggdrasilsprings.church while every step said clean.
+
+Content written without a build is saved and NOT live. That is a normal state,
+and it is worth saying to the user in those words rather than implying the change
+is visible.
 
 ### Monitoring
 
@@ -777,6 +798,7 @@ Run it before the approval gate, not after the build.
 | `Website not found` | Token scoped to a different website | Confirm you're in the correct project directory with the right `.mcp.json` |
 | Schema validation failure | Invalid `type`/`tag` or missing required field | Run the pre-write checklist (Section 5); check the Component Selection Guide in the loaded schema instructions |
 | Build failed | Code or content error in the generated JSON | Call `get_build_logs(build_id)` → read the error; common causes: invalid JSON, missing required field, asset filename not found |
+| A change is published and the live page still shows the old version | No build ran. Either none was triggered, or the trigger was refused because the 30-per-24-hours quota is spent | Confirm a `build_id` came back and that it reached `SUCCEEDED`. No `build_id` means no build: treat it as a failure, surface the message, and tell the user the change is saved and not live (see 7) |
 | Whole site returns 404 after a build | The build failed, and a failed build deploys nothing - the previous site is gone, not just the changed page | Check `curl -o /dev/null -w '%{http_code}' https://{domain}/` after every build; publish one change at a time to bisect, since `get_build_logs` cannot reach the tail of the log where the error is (see 8h) |
 | Block renders as a single column despite `display: grid` | An invented key inside `options.grid` - most often `gridTemplateColumns` - was silently dropped, leaving grid with no template | Use `grid: { "columns": N, "gap": "..." }`; grep `/segments/<page>-<hash>.css` to confirm the key was accepted, then screenshot the page to confirm it did anything (see 8h) |
 | `entries-list` still one column, and `grid-template-columns` IS in the built CSS | The grid is on the component's wrapper, so it laid out the card list and the pagination nav as the two columns, not the cards | Remove `options.display` and `options.grid` from the component; set `content.gridColumns` instead (see 8h) |
