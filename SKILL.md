@@ -124,6 +124,7 @@ Always enforce these.
 - **NEVER** put a `backgroundColor` key inside an element's `options` — Set a section or element background with the `background` key in `options` (e.g. `"background": "var(--backgroundColor)"`); a `backgroundColor` key inside `options` is not rendered on the live site. The hex `backgroundColor` belongs only in `globaldesignsettings.colorDesign`, and the CSS variable `var(--backgroundColor)` is always valid as a *value* inside `background`. (This forbids only the JSON key; using `var(--backgroundColor)` as a value inside `background` is always correct.)
 - **NEVER** remove `meta.title` or `meta.status.published`
 - **NEVER** ship a change that breaks mobile — base `options` is the desktop default and cascades to every viewport; whenever any declarative property at the base (`size`, `flex.flexDirection`, `grid.columns`, `gridColumns`, `imagesPerRow`, `maxColumns`, `padding`, etc.) would not survive a narrow viewport, add a `phone` (and if needed `tablet`) override block that redeclares only the fields that change. No horizontal overflow at 375px
+- **NEVER** write a redirect whose `to` lacks a trailing slash. Sites are served from an S3 static website endpoint, which answers a directory-style URL without a trailing slash with its own `302` to add one, so `"to": "/about"` costs every redirected visitor a second round trip while `"to": "/about/"` resolves in one. Do not point `to` at `index.html` either: it works, but it puts `index.html` in the visitor's address bar and creates a second crawlable URL serving identical content. See Section 8j.
 - **ALWAYS** run the pre-write validation checklist before any MCP write call
 - **ALWAYS** verify the target site identity before a write: the MCP server name should be based on the primary domain (for example `inboundsavvy_acmestudio.com`) and `globalsitesettings.seo.url` must match the site the user asked to edit. If it points at a sandbox or another domain, stop.
 - **ALWAYS** show the approval gate diff before writing
@@ -732,6 +733,68 @@ repo. The approach, which is what transfers:
 
 Run it before the approval gate, not after the build.
 
+### 8j. Redirect a URL
+
+Redirects live in the singleton collection `redirection` (**singular**), slug
+`redirection`. The plural `redirections` is not a collection and is rejected
+outright as an unknown collection, so a write there fails loudly rather than
+appearing to succeed.
+
+```json
+{
+  "redirects": [
+    { "from": "/old-about", "to": "/about/" },
+    { "from": "/blog/2023-welcome", "to": "/blog/welcome/" }
+  ]
+}
+```
+
+Both `from` and `to` start with `/`. **`to` must also end with `/`.** The site is
+served from an S3 static website endpoint, which replies to a directory-style URL
+lacking a trailing slash with its own `302` to add one, so a destination written
+`/about` turns one hop into two for every redirected visitor. Do not point `to`
+at `index.html` either: it works, but it puts `index.html` in the visitor's
+address bar and creates a second crawlable URL serving identical content.
+
+This is the rule most often got wrong, including in shipped build output, so
+check it on every entry you write rather than trusting the surrounding examples.
+
+#### What the build emits, and why a live site may disagree
+
+The build turns each redirect into a small HTML file carrying
+`<meta http-equiv="refresh" content="0;url=...">`, `<meta name="robots"
+content="noindex">` and a canonical link, served as HTTP `200`. That is a
+client-side redirect. It is fine for tidying a stale internal link, and it is
+**not** equivalent to a `301` for a URL that has accumulated search impressions:
+a `200` plus meta refresh does not transfer ranking signal, and the `noindex`
+tells Google to drop the old URL rather than credit the new one, which fights the
+canonical instead of reinforcing it.
+
+**But do not tell a user what their redirects do without checking.** A site can
+*also* have real `301`s applied directly to the S3 objects via
+`x-amz-website-redirect-location`, in which case S3 answers with a genuine `301`
+and the meta-refresh file is never served. Some sites are in exactly that state.
+
+```
+curl -sI https://{domain}/{old-path}/ | head -3
+```
+
+`301` with a `location:` header means hard redirects are in force. `200` means
+the meta-refresh file is doing the work.
+
+**The trap is that the hard redirects are not durable.** Nothing in the deploy
+pipeline sets that metadata, and the deploy runs `aws s3 sync --delete`, which
+re-uploads each object with no metadata attached. So hand-applied `301`s are
+silently reverted to soft redirects by the next build — a regression that arrives
+on a deploy nobody connects to redirects, on URLs whose ranking is the whole
+reason the redirect exists.
+
+So when a URL with real traffic is being moved, say plainly: the redirect will
+work, and it will stop being a `301` at the next deploy unless the deploy
+pipeline is taught to reapply the metadata. That belongs to whoever owns the
+pipeline; it is outside this skill's reach. Setting it by hand proves the
+mechanism, it does not fix the site.
+
 ---
 
 ## 9. Common Errors + How to Fix
@@ -750,4 +813,7 @@ Run it before the approval gate, not after the build.
 | Hero crops the subject out of the photograph | `object-fit: cover` center-crops on both edges and cannot be told to keep the top | Cut the cover to the hero aspect ratio at the asset level with a per-image crop gravity (see 8f) |
 | Asset too large | File exceeds 4MB limit | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
 | Asset filename rejected | Filename contains spaces or special characters | Rename to `kebab-case.jpg` before uploading |
+| Redirect takes two hops | `to` has no trailing slash, so S3 issues its own `302` to add one | Rewrite `to` ending in `/` (Section 8j) |
+| Redirect write rejected as an unknown collection | Wrote to `redirections` (plural); the collection is `redirection`, slug `redirection` | Rewrite to the singular collection and slug (Section 8j) |
+| A moved URL that used to `301` now serves a meta refresh | A hand-applied `x-amz-website-redirect-location` was stripped by the deploy's `aws s3 sync --delete`, which re-uploads objects with no metadata | Confirm with `curl -sI`; the durable fix is for the deploy pipeline to reapply the metadata after every sync, which is outside this skill (Section 8j) |
 
