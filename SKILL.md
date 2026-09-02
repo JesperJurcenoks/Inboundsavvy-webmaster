@@ -283,7 +283,7 @@ get_build_logs(build_id, limit=50)   ← on failure only; offer "show more" if u
 
 Accept the file in whichever way the user provides it:
 
-- **File path** (preferred): user types or pastes a local path (e.g. `~/Downloads/hero.jpg`), or drags a file into the terminal which pastes its path. Run `base64 -w0 <path>` via Bash to encode it. Detect content type from the extension (`.jpg`/`.jpeg` → `image/jpeg`, `.png` → `image/png`, `.webp` → `image/webp`, `.gif` → `image/gif`, `.svg` → `image/svg+xml`).
+- **File path** (preferred): user types or pastes a local path (e.g. `~/Downloads/hero.jpg`), or drags a file into the terminal which pastes its path. Run `base64 -w0 <path>` via Bash to encode it. Detect content type from the extension: `.jpg`/`.jpeg` → `image/jpeg`, `.png` → `image/png`, `.webp` → `image/webp`, `.gif` → `image/gif`, `.svg` → `image/svg+xml`, `.avif` → `image/avif`, `.ico` → `image/x-icon`. The `upload_asset` tool description lists the content types it accepts and is authoritative if this mapping ever falls behind it.
 
 - **Image attached to the conversation**: if the user drops/attaches an image directly in the chat, Claude sees a visual preview but cannot extract the raw binary from it. Ask for the local file path instead so it can be encoded properly.
 
