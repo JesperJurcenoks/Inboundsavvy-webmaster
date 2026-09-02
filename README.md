@@ -20,6 +20,8 @@ The skill connects to your InboundSavvy website via MCP, loads your current desi
 
 The skill talks to your live InboundSavvy website over the network — it does **not** need any downloaded website files. The local directory you create below is just a workspace that holds your API token (`.mcp.json`). Your actual website content stays on the InboundSavvy servers; the skill reads and writes it directly via the MCP API.
 
+Each InboundSavvy MCP token is scoped to one website. If you manage several sites, install each one as a separate MCP server with a name based on its primary domain, for example `inboundsavvy_acmestudio.com`. The endpoint stays the same; the server name and token change.
+
 ---
 
 ## Install
@@ -41,10 +43,10 @@ Log in to your InboundSavvy CMS → **select the website you want to work on** �
 **Step 3 — Run the installer inside that folder**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/JesperJurcenoks/Inboundsavvy-webmaster/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/JesperJurcenoks/Inboundsavvy-webmaster/main/install.sh | bash -s -- --domain acmestudio.com
 ```
 
-The installer prompts for your token (hidden input), writes `.mcp.json` in the current directory, adds it to `.gitignore`, and installs the skill at `~/.claude/skills/inboundsavvy-webmaster/`.
+The installer prompts for your token (hidden input), writes `.mcp.json` in the current directory using a domain-based MCP server name such as `inboundsavvy_acmestudio.com`, adds `.mcp.json` to `.gitignore`, and installs the skill at `~/.claude/skills/inboundsavvy-webmaster/`.
 
 Or run from a local clone instead:
 ```bash
@@ -105,6 +107,7 @@ with new-hero.jpg and change the h1 to "Work in progress"
 
 - **Never commit `.mcp.json`** — the installer adds it to `.gitignore` automatically
 - **One token per site** — each token is scoped to one website; create a new one for each project directory
+- **Name each MCP server after the site's primary domain** — for example `inboundsavvy_acmestudio.com`, `inboundsavvy_example.org`, or `inboundsavvy_northwindcafe.com`
 - **Rotate tokens** any time in CMS → select the website → ... More → MCP Tokens
 
 ---
