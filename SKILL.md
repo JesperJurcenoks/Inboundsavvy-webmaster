@@ -289,7 +289,7 @@ Accept the file in whichever way the user provides it:
 
 Steps:
 1. Get the file path (or ask for it if not provided)
-2. Validate: file size ≤ 4MB (`stat -c%s <path>`); filename matches `^[a-z0-9._-]+$` (rename to kebab-case if not)
+2. Validate: file size against the maximum stated in the `upload_asset` tool description (`stat -c%s <path>`); filename matches `^[a-z0-9._-]+$` (rename to kebab-case if not)
 3. Encode: `base64 -w0 <path>` → `content_base64`
 4. Determine the correct folder:
    - Default: `"images"` (for page/global assets)
@@ -748,6 +748,6 @@ Run it before the approval gate, not after the build.
 | `entries-list` renders nothing or breaks the build | Filter keys passed as empty strings, as the schema reference's own example shows | Omit unused filter keys entirely; copy a working `entries-list` from a sibling site's MCP server (see 8h) |
 | Collection entries render hard-left with no margin | `designs/{collection}-design.json` still has the template's empty `options` blocks | Set `collectionMain.options.sectionOptions` and the header/footer measures (see 8f) |
 | Hero crops the subject out of the photograph | `object-fit: cover` center-crops on both edges and cannot be told to keep the top | Cut the cover to the hero aspect ratio at the asset level with a per-image crop gravity (see 8f) |
-| Asset too large | File exceeds 4MB limit | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
+| Asset too large | File exceeds the upload size limit; the error message names the limit and the file's actual size | Compress the image before uploading; use a tool like Squoosh or ImageOptim |
 | Asset filename rejected | Filename contains spaces or special characters | Rename to `kebab-case.jpg` before uploading |
 
