@@ -124,6 +124,7 @@ Always enforce these.
 - **NEVER** put a `backgroundColor` key inside an element's `options` — Set a section or element background with the `background` key in `options` (e.g. `"background": "var(--backgroundColor)"`); a `backgroundColor` key inside `options` is not rendered on the live site. The hex `backgroundColor` belongs only in `globaldesignsettings.colorDesign`, and the CSS variable `var(--backgroundColor)` is always valid as a *value* inside `background`. (This forbids only the JSON key; using `var(--backgroundColor)` as a value inside `background` is always correct.)
 - **NEVER** remove `meta.title` or `meta.status.published`
 - **NEVER** ship a change that breaks mobile — base `options` is the desktop default and cascades to every viewport; whenever any declarative property at the base (`size`, `flex.flexDirection`, `grid.columns`, `gridColumns`, `imagesPerRow`, `maxColumns`, `padding`, etc.) would not survive a narrow viewport, add a `phone` (and if needed `tablet`) override block that redeclares only the fields that change. No horizontal overflow at 375px
+- **NEVER** call `trigger_build` unless the user asked for a build — builds are rationed per site per environment. Write, then ask; batch changes into one build (see 7)
 - **ALWAYS** run the pre-write validation checklist before any MCP write call
 - **ALWAYS** verify the target site identity before a write: the MCP server name should be based on the primary domain (for example `inboundsavvy_acmestudio.com`) and `globalsitesettings.seo.url` must match the site the user asked to edit. If it points at a sandbox or another domain, stop.
 - **ALWAYS** show the approval gate diff before writing
@@ -186,6 +187,8 @@ Before calling `create_content_file` or `update_content_file`, run this checklis
 ▢ 13. Unrecognized keys - every key you wrote exists in the loaded schema; an invented key is dropped silently, not rejected (e.g. `options.grid` takes only `columns` / `rows` / `gap`)
 ▢ 14. Filter keys - `entries-list` filters (`category`, `collaborator`, `filterOutSeries`) are omitted when unused, never passed as ""
 ▢ 15. Cover crop - a full-bleed cover is cut to the hero aspect ratio at the asset level, not left to `object-fit`, which can only center-crop
+▢ 15a. Component layout - no `options.display: "grid"` or `options.grid` on a component that lays itself out (`entries-list`, `events-list`); its own `gridColumns` is the knob (see 8h)
+▢ 15b. Grid track lists - every `options.grid.columns` is a quoted CSS track list (`"repeat(3, minmax(0, 1fr))"`, `"1fr"`), never a bare number (see 8h)
 ▢ 16. A11y beyond alt text — heading hierarchy is sequential (one h1 per page; h2 before h3, etc.); link text is descriptive (no "click here" / "read more" without context); any new color pairing maintains readable contrast against the design system background
 ```
 
@@ -227,12 +230,23 @@ After a successful write, always offer the live preview first:
 > "File saved. Log into your console at https://inboundsavvy.com to view your changes.
 > Would you also like me to trigger a build?"
 
-### Building (optional — costs money, needed for full fidelity)
+### Building (on the user's direction ONLY — costs money, and the quota is finite)
 
-If the user wants a full build:
+**Never build on your own initiative.** Write, then stop and ask, and batch a
+day's edits into one build. Builds are rationed per website per environment on a
+rolling 24 hours, production tighter than beta; the refusal names the cap in
+force and the reset time, so read it from there rather than assuming a number.
+
+If the user asks for a build:
 ```
 trigger_build(environment="beta") → build_id
 ```
+
+**No `build_id` means the build did not happen.** A refusal comes back as a
+message rather than an error, so anything that only looks for a `build_id` reads
+the absence of one as "nothing to poll" instead of as failure — and the content
+then sits published-but-not-live while every step reports clean. Surface the
+refusal, and tell the user the change is saved and **NOT live**, in those words.
 
 ### Monitoring
 
@@ -246,6 +260,18 @@ Poll `get_build_status(build_id)` sequentially in the agentic loop:
 ```
 get_build_logs(build_id, limit=50)   ← on failure only; offer "show more" if user asks
 ```
+
+### Verifying after a green build
+
+A `SUCCEEDED` build means the content compiled, not that it looks right.
+
+- **Check the site is still there.** A failed build deploys nothing, so confirm
+  `curl -o /dev/null -w '%{http_code}' https://{domain}/` before anything else.
+- **Never report a layout fix on stylesheet evidence alone.** Grepping the built
+  CSS answers *was the key accepted?* It cannot answer *is the layout right?*,
+  because a valid property sitting on the wrong element is emitted exactly as
+  happily as one on the right element. Screenshot the page and look at it before
+  telling the user it is fixed (see 8h for the command).
 
 ---
 
@@ -618,27 +644,49 @@ way to see which keys the renderer actually **honors** as against which ones the
 documentation merely lists. Do this first for collection design files,
 `entries-list` configuration, and any component you have not shipped before.
 
-#### `options.grid` takes `columns`, `rows` and `gap`. Nothing else.
+#### `options.grid` takes `columns`, `rows` and `gap`. Nothing else - and `columns` is a CSS track list, not a count.
 
-`gridTemplateColumns` is not a key. It is silently dropped, which leaves
-`display: grid` with no template at all, and a grid with no template renders as a
-single column.
+Two separate mistakes produce the identical single-column symptom. Fix both or
+you will fix one and think you are done.
 
-```json
-"options": {
-  "display": "grid",
-  "grid": { "gridTemplateColumns": "repeat(3, 1fr)", "gap": "1.5rem" }   // WRONG
-}
-```
+**Mistake 1 - the wrong key.** `gridTemplateColumns` is not a key. It is silently
+dropped, which leaves `display: grid` with no template at all, and a grid with no
+template renders as a single column.
 
 ```json
 "options": {
   "display": "grid",
-  "grid": { "columns": 3, "gap": "1.5rem" },
-  "tablet": { "grid": { "columns": 2 } },
-  "phone":  { "grid": { "columns": 1 } }
+  "grid": { "gridTemplateColumns": "repeat(3, 1fr)", "gap": "1.5rem" }   // WRONG - invented key
 }
 ```
+
+**Mistake 2 - the right key with a number in it.** `columns` is typed as a
+**string**, and its value is written straight into the stylesheet as the value of
+`grid-template-columns`. Nothing wraps it in `repeat(...)` for you. So
+`"columns": 3` emits `grid-template-columns:3`, which is not valid CSS, which the
+browser discards - leaving you with, once again, a single column.
+
+```json
+"options": {
+  "display": "grid",
+  "grid": { "columns": 3, "gap": "1.5rem" }   // WRONG - a count, not a track list
+}
+```
+
+Write a CSS track list, quoted:
+
+```json
+"options": {
+  "display": "grid",
+  "grid": { "columns": "repeat(3, minmax(0, 1fr))", "gap": "1.5rem" },
+  "tablet": { "grid": { "columns": "repeat(2, minmax(0, 1fr))" } },
+  "phone":  { "grid": { "columns": "1fr" } }
+}
+```
+
+`minmax(0, 1fr)` rather than `1fr` because a bare `1fr` refuses to shrink below
+its content's intrinsic width, which is what makes a long word or a wide image
+push a grid into horizontal overflow on a phone.
 
 This one is worth calling out loudly because a wrong key produces **no error at
 all**, and the sibling `gap` on the same object is a valid key and survives. So
@@ -655,12 +703,81 @@ curl -s https://{domain}/segments/articles-<hash>.css | grep -o 'grid-template-c
 Nothing back means the key never reached the renderer. This works for any
 declarative key you suspect of being dropped, not just grid.
 
+**But emitted is not applied, and the stylesheet cannot tell you the difference.**
+That grep answers one question only: *was the key accepted?* It cannot answer
+*is the layout right?*, because a valid key on the wrong element is emitted just
+as happily as a valid key on the right one — so a stylesheet showing exactly the
+property you wanted is consistent with a page that still looks wrong.
 
-**Confirmed on a build.** After switching `gridTemplateColumns` to `columns`, the
-generated stylesheet emits `grid-template-columns:repeat(2, minmax(0, 1fr))` where
-before it emitted nothing. The wrong key produced no error and no CSS; the
-documented sibling `gap` on the same object survived both times, which is what
-makes the block look half-applied rather than broken.
+So the grep is step one of two. **Step two is to look at the page:**
+
+```
+google-chrome --headless=new --disable-gpu --window-size=1440,5200 \
+  --screenshot=/tmp/check.png --virtual-time-budget=8000 "https://{domain}/<path>"
+```
+
+Then open the image and compare what you see against what you asked for. Never
+report a layout fix on stylesheet evidence alone.
+
+#### An `entries-list` lays out its own cards. Do not put a grid around it.
+
+This is how the property above landed on the wrong element, and it is the single
+most likely way to get a one-column list out of a component you configured for
+two.
+
+An `entries-list` renders three children in order: a filter bar, the card list,
+and a pagination nav. Its own `content.gridColumns` is what lays the *cards* out
+- it emits `--grid-columns` on the inner `.items-grid`. Setting `options.display:
+"grid"` and `options.grid` on the component instead applies a grid to that outer
+wrapper, which dutifully lays out *those three children* as the columns - card
+list in one, pagination nav in the next. The card list is then squeezed into a
+fraction of the width while the pager sits beside it, so the cards keep whatever
+column count you gave `gridColumns` but render at half size in half the page.
+
+```json
+"content": { "entryType": "articles", "displayMode": "grid", "gridColumns": 2 },
+"options": { "display": "grid", "grid": { "columns": "repeat(2, minmax(0, 1fr))" } }   // WRONG, fights itself
+```
+
+```json
+"content": { "entryType": "articles", "displayMode": "grid", "gridColumns": 2 },
+"options": { "size": { "width": "100%" } }
+```
+
+The rule generalizes: before styling a **component**, check whether it already
+owns the thing you are about to set. Components carry their own internal layout;
+block-level elements do not.
+
+#### An `entries-list` lists the entry it is sitting on. This is a platform bug, not a missing feature.
+
+A `series`-filtered list in a collection footer lists the article the reader is
+currently reading, under a heading that says "next". The symptom is real and
+reproducible.
+
+**Do not work around it, and do not design around the assumption that the
+component cannot do this.** The exclusion exists and is fully implemented -
+including series-aware "the ones after this, then the ones before" ordering. It
+is wired end to end and then dropped on the last hop:
+
+- the layout has the collection entry in scope and passes only its validated
+  `data` down to the segment renderer
+- the segment renderer asks that object for an `id` to use as the current entry
+- the entry schema declares nine fields - title, description, collaborator,
+  publicationDate, coverImage, status, tags, order, series - and **no `id`**, so
+  the validator strips it and the renderer always reads `undefined`
+- the fetcher's exclusion is therefore handed `null` every time and never fires
+
+So this is one wiring line away from working, on every site at once. **File it
+against the layout** - the fix is to thread the collection entry's own id (the
+one the fetcher compares against, derived from the filename) down to the
+renderer. Note that adding `id` to the entry schema does **not** fix it: that
+would be an author-supplied field in the JSON, and it would match the collection
+entry id only by coincidence.
+
+Until the platform fix lands, if a customer needs the footer list now, generate
+it from primitives in whatever script writes the entries - but treat that as
+temporary scaffolding with an issue number attached, not as the way this is done.
+A workaround written into every site is how a one-line bug becomes permanent.
 
 #### `entries-list` filter keys must be omitted, not blanked
 
@@ -743,8 +860,12 @@ Run it before the approval gate, not after the build.
 | `Website not found` | Token scoped to a different website | Confirm you're in the correct project directory with the right `.mcp.json` |
 | Schema validation failure | Invalid `type`/`tag` or missing required field | Run the pre-write checklist (Section 5); check the Component Selection Guide in the loaded schema instructions |
 | Build failed | Code or content error in the generated JSON | Call `get_build_logs(build_id)` → read the error; common causes: invalid JSON, missing required field, asset filename not found |
+| A change is published and the live page still shows the old version | No build ran — either none was triggered, or the trigger was refused because the quota is spent | Confirm a `build_id` came back and reached `SUCCEEDED`; no `build_id` is a failed build. Surface the refusal and tell the user the change is saved and not live (see 7) |
 | Whole site returns 404 after a build | The build failed, and a failed build deploys nothing - the previous site is gone, not just the changed page | Check `curl -o /dev/null -w '%{http_code}' https://{domain}/` after every build; publish one change at a time to bisect, since `get_build_logs` cannot reach the tail of the log where the error is (see 8h) |
-| Block renders as a single column despite `display: grid` | An invented key inside `options.grid` - most often `gridTemplateColumns` - was silently dropped, leaving grid with no template | Use `grid: { "columns": N, "gap": "..." }`; confirm by fetching `/segments/<page>-<hash>.css` and grepping for `grid-template-columns` (see 8h) |
+| Block renders as a single column despite `display: grid` | Either an invented key inside `options.grid` (usually `gridTemplateColumns`), or `columns` given a number - both leave `grid-template-columns` with nothing valid in it | Use `grid: { "columns": "repeat(N, minmax(0, 1fr))", "gap": "..." }` - a quoted CSS track list, never a count; grep `/segments/<page>-<hash>.css` to confirm the key was accepted, then screenshot the page to confirm it did anything (see 8h) |
+| `entries-list` still one column, and `grid-template-columns` IS in the built CSS | The grid is on the component's wrapper, so it laid out the card list and the pagination nav as the two columns, not the cards | Remove `options.display` and `options.grid` from the component; set `content.gridColumns` instead (see 8h) |
+| An article lists itself under "Next in the series" | Platform bug, not a missing feature: the exclusion is implemented but is handed `null`, because the entry schema has no `id` for the renderer to read | File it against the layout so the collection entry's id reaches the renderer; scaffold from primitives only until that lands (see 8h) |
+| Three cards to a row render as two, with an empty third of the page | Percentage card widths that ignore the gaps. `31.5% x 3` plus two `2rem` gaps fits a wide desktop and overflows a narrower one (below roughly 1160px), so the third card wraps at some viewports and not others - which is why it looks intermittent | Never mix percentage widths with fixed gaps; compute the width from the gaps so it holds at every size: `calc((100% - 4rem) / 3)` |
 | `entries-list` renders nothing or breaks the build | Filter keys passed as empty strings, as the schema reference's own example shows | Omit unused filter keys entirely; copy a working `entries-list` from a sibling site's MCP server (see 8h) |
 | Collection entries render hard-left with no margin | `designs/{collection}-design.json` still has the template's empty `options` blocks | Set `collectionMain.options.sectionOptions` and the header/footer measures (see 8f) |
 | Hero crops the subject out of the photograph | `object-fit: cover` center-crops on both edges and cannot be told to keep the top | Cut the cover to the hero aspect ratio at the asset level with a per-image crop gravity (see 8f) |
