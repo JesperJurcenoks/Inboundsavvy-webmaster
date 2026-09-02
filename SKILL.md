@@ -222,10 +222,9 @@ trigger_build(environment="beta") → build_id
 
 **No `build_id` means the build did not happen.** A refusal comes back as a
 message rather than an error, so anything that only looks for a `build_id` reads
-the absence of one as "nothing to poll" instead of as failure. Surface it, and
-tell the user the change is saved and **NOT live** — in those words. That is how
-a replaced photograph stayed invisible for an afternoon while every step of the
-publish reported clean.
+the absence of one as "nothing to poll" instead of as failure — and the content
+then sits published-but-not-live while every step reports clean. Surface the
+refusal, and tell the user the change is saved and **NOT live**, in those words.
 
 ### Monitoring
 
@@ -685,13 +684,8 @@ declarative key you suspect of being dropped, not just grid.
 **But emitted is not applied, and the stylesheet cannot tell you the difference.**
 That grep answers one question only: *was the key accepted?* It cannot answer
 *is the layout right?*, because a valid key on the wrong element is emitted just
-as happily as a valid key on the right one.
-
-This is not hypothetical. An earlier version of this section reported the fix as
-confirmed on the evidence that `grid-template-columns:repeat(2, minmax(0, 1fr))`
-now appeared in the built CSS where nothing had appeared before. That was true,
-and the page was still one column, because the property had landed on the wrapper
-around the list rather than on the list. The report cost a day.
+as happily as a valid key on the right one — so a stylesheet showing exactly the
+property you wanted is consistent with a page that still looks wrong.
 
 So the grep is step one of two. **Step two is to look at the page:**
 
