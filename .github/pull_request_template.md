@@ -1,33 +1,31 @@
 <!--
 SKILL.md is instruction an agent follows literally against a customer's live
-site, and it is loaded every session. See CONTRIBUTING.md.
+site, loaded every session. See CONTRIBUTING.md.
 
-The house rule: the rule goes in the file, the story goes in the PR description.
-Put the incident below, not in SKILL.md.
+The rule goes in the file. The story goes in the PR description: put the incident
+below, not in SKILL.md.
 -->
 
 ## What changed
 
 <!-- The rule, as it now reads in the file. -->
 
-## Why — the incident
+## Why - the incident
 
-<!-- The war story goes HERE, not in SKILL.md: what broke, on which site, what
-     you tried first, what it cost. This is the evidence for the reviewer. -->
+<!-- The war story goes here: what broke, on which site, what you tried first,
+     what it cost. -->
 
 ## How it was verified
 
-<!-- Name the source for each factual claim: the tool description and the
-     constant behind it, the schema reference, the renderer, a build artifact,
-     or a `curl -sI` against the live domain.
-
-     Separate what you OBSERVED from what you INFERRED. -->
+<!-- Name the source for each claim: the tool description and its constant, the
+     schema reference, the renderer, a build artifact, or curl against the live
+     domain. Separate what you observed from what you inferred. -->
 
 ---
 
-- [ ] Every sentence added to `SKILL.md` changes what an agent does — narrative and justification are in this description instead
-- [ ] No limit, cap, or accepted-value list is copied into `SKILL.md` where the tool description already states it
-- [ ] Each factual claim was checked against source or a live response, not recalled
-- [ ] Any claim about what a specific site does right now is dated
-- [ ] New sections are appended, not inserted into an existing letter sequence
-- [ ] Any platform bug is filed rather than worked around here — or the workaround links the issue that will delete it
+- [ ] Every sentence added to SKILL.md changes what an agent does
+- [ ] No limit, cap, or value list copied where the tool description states it
+- [ ] Each claim checked against source or a live response, not recalled
+- [ ] Any claim about a specific site is dated
+- [ ] New sections appended, not inserted into an existing letter sequence
+- [ ] Platform bugs filed, or the workaround links the issue that deletes it
